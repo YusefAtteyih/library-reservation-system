@@ -1,6 +1,6 @@
 # Library Reservation System
 
-A modern, full-stack application for managing library resources including books, rooms, and seats.
+A modern, full-stack application for managing library resources including books, rooms, and seats. Updated for Git push test.
 
 ## Features
 
