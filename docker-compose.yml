@@ -1,0 +1,41 @@
+version: '2.4'
+
+services:
+  db:
+    image: postgres:13-alpine
+    container_name: library_db
+    environment:
+      POSTGRES_USER: library_user
+      POSTGRES_PASSWORD: library_password
+      POSTGRES_DB: library_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    mem_limit: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U library_user -d library_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: library_app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://library_user:library_password@db:5432/library_db?schema=public
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - db
+    volumes:
+      - ./backend:/usr/src/app
+      - /usr/src/app/node_modules
+    tty: true
+
+volumes:
+  postgres_data:

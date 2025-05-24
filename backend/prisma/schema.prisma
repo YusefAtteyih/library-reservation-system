@@ -1,0 +1,156 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String         @id @default(uuid())
+  email             String         @unique
+  name              String
+  password          String
+  universityId      String?
+  twoFactorSecret   String?        @db.Text
+  twoFactorEnabled  Boolean        @default(false)
+  role              UserRole       @default(USER)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  reservations      Reservation[]
+  loans             Loan[]
+  notifications     Notification[]
+}
+
+model Book {
+  id          String     @id @default(uuid())
+  title       String
+  author      String
+  isbn        String     @unique
+  description String?
+  coverImage  String?
+  status      BookStatus @default(AVAILABLE)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  loans       Loan[]
+}
+
+model Room {
+  id          String     @id @default(uuid())
+  name        String
+  location    String?
+  description String?
+  capacity    Int
+  seats       Seat[]
+  timeslots   Timeslot[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Seat {
+  id           String        @id @default(uuid())
+  name         String
+  label        String?       @unique
+  description  String?
+  roomId       String
+  room         Room          @relation(fields: [roomId], references: [id])
+  reservations Reservation[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Reservation {
+  id          String            @id @default(uuid())
+  userId      String
+  user        User              @relation(fields: [userId], references: [id])
+  seatId      String
+  seat        Seat              @relation(fields: [seatId], references: [id])
+  timeslot    Timeslot?         @relation(fields: [timeslotId], references: [id])
+  timeslotId  String?
+  startTime   DateTime
+  endTime     DateTime
+  status      ReservationStatus @default(PENDING)
+  notes       String?
+  checkInCode String?           @unique
+  checkedInAt DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+model Timeslot {
+  id           String        @id @default(uuid())
+  startTime    DateTime
+  endTime      DateTime
+  dayOfWeek    String
+  roomId       String
+  room         Room          @relation(fields: [roomId], references: [id])
+  reservations Reservation[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Loan {
+  id         String     @id @default(uuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id])
+  bookId     String
+  book       Book       @relation(fields: [bookId], references: [id])
+  dueDate    DateTime
+  returnedAt DateTime?
+  status     LoanStatus @default(BORROWED)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  type      NotificationType
+  message   String
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+}
+
+enum UserRole {
+  ADMIN
+  LIBRARIAN
+  USER
+}
+
+enum BookStatus {
+  AVAILABLE
+  BORROWED
+  RESERVED
+  MAINTENANCE
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  CHECKED_IN
+  FORFEITED
+}
+
+enum LoanStatus {
+  BORROWED
+  RETURNED
+  OVERDUE
+  LOST
+}
+
+enum NotificationType {
+  RESERVATION_CONFIRMED
+  RESERVATION_REMINDER
+  RESERVATION_CANCELLED
+  LOAN_DUE_SOON
+  LOAN_OVERDUE
+  SYSTEM_ALERT
+}

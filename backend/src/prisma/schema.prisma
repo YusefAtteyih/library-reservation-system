@@ -1,0 +1,174 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+enum ResourceType {
+  ROOM
+  SEAT
+}
+
+enum ReservationStatus {
+  PENDING
+  APPROVED
+  CANCELLED
+  EXPIRED
+  CHECKED_IN // Added for check-in logic
+}
+
+enum BookStatus {
+  AVAILABLE
+  ON_LOAN
+  RESERVED // For holds
+}
+
+model User {
+  id            String        @id @default(cuid())
+  universityId  String        @unique @map("university_id")
+  role          Role          @default(STUDENT)
+  email         String        @unique
+  name          String
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  reservations  Reservation[]
+  loans         Loan[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Room {
+  id        String        @id @default(cuid())
+  name      String
+  location  String
+  capacity  Int
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  seats       Seat[]
+  timeslots   Timeslot[]
+  reservations Reservation[]
+
+  @@map("rooms")
+}
+
+model Seat {
+  id        String        @id @default(cuid())
+  roomId    String?       @map("room_id") // Optional link to a room
+  label     String        // e.g., "A1", "Reading Area Seat 5"
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  room        Room?         @relation(fields: [roomId], references: [id])
+  reservations Reservation[]
+
+  @@map("seats")
+}
+
+model Book {
+  id        String      @id @default(cuid())
+  isbn      String      @unique
+  title     String
+  author    String
+  year      Int?
+  status    BookStatus  @default(AVAILABLE)
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  loans     Loan[]
+
+  @@index([title]) // Index for searching by title
+  @@index([author]) // Index for searching by author
+  // @@fulltext([title, author]) // Consider using full-text search later if needed (preview feature)
+  @@map("books")
+}
+
+model Timeslot {
+  id        String    @id @default(cuid())
+  roomId    String    @map("room_id")
+  startAt   DateTime  @map("start_at")
+  endAt     DateTime  @map("end_at")
+  isBlocked Boolean   @default(false) @map("is_blocked")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  room      Room      @relation(fields: [roomId], references: [id])
+
+  @@unique([roomId, startAt, endAt]) // Ensure timeslots for a room don't overlap definitionally
+  @@map("timeslots")
+}
+
+model Reservation {
+  id            String            @id @default(cuid())
+  userId        String            @map("user_id")
+  resourceType  ResourceType      @map("resource_type")
+  roomId        String?           @map("room_id") // Nullable, used if resourceType is ROOM
+  seatId        String?           @map("seat_id") // Nullable, used if resourceType is SEAT
+  startAt       DateTime          @map("start_at")
+  endAt         DateTime          @map("end_at")
+  status        ReservationStatus @default(PENDING)
+  qrCode        String?           @unique @map("qr_code") // Unique QR code for check-in
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  user          User              @relation(fields: [userId], references: [id])
+  room          Room?             @relation(fields: [roomId], references: [id])
+  seat          Seat?             @relation(fields: [seatId], references: [id])
+
+  // Composite index for conflict checks on rooms
+  @@index([roomId, startAt, endAt], map: "idx_reservation_room_time")
+  // Composite index for conflict checks on seats
+  @@index([seatId, startAt, endAt], map: "idx_reservation_seat_time")
+  // Index for user's reservations
+  @@index([userId])
+
+  @@map("reservations")
+}
+
+model Loan {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  bookId      String    @map("book_id")
+  borrowedAt  DateTime  @default(now()) @map("borrowed_at")
+  dueAt       DateTime  @map("due_at")
+  returnedAt  DateTime? @map("returned_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user        User      @relation(fields: [userId], references: [id])
+  book        Book      @relation(fields: [bookId], references: [id])
+
+  @@index([userId])
+  @@index([bookId])
+  @@map("loans")
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  type      String    // e.g., 'RESERVATION_CONFIRMED', 'LOAN_DUE', 'WAITLIST_AVAILABLE'
+  payload   Json      // Specific details of the notification
+  isRead    Boolean   @default(false) @map("is_read")
+  sentAt    DateTime  @default(now()) @map("sent_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("notifications")
+}
+
